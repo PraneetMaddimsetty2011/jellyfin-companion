@@ -1,0 +1,32 @@
+$ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot '..\src\Core.ps1')
+    function Assert($Ok, $Label) { if (-not $Ok) { throw "FAILED: $Label" }; Write-Output "PASS: $Label" }
+    $playing = [pscustomobject]@{ NowPlayingItem=@{Id='test'}; PlayState=@{IsPaused=$false} }
+    $paused = [pscustomobject]@{ NowPlayingItem=@{Id='test'}; PlayState=@{IsPaused=$true} }
+    $browsing = [pscustomobject]@{ NowPlayingItem=$null; PlayState=@{} }
+    Assert ((Get-IdleDecision @() 0 $null $null).Remaining -eq 300) 'fresh launch starts at five minutes'
+    Assert ((Get-IdleDecision @() 299 0 295).Mode -eq 'Idle') 'no early sleep'
+    Assert ((Get-IdleDecision @() 300 0 295).Mode -eq 'Due') 'sleep becomes due at five minutes'
+    Assert ((Get-IdleDecision @($paused,$playing) 300 0 295).Mode -eq 'Playing') 'any playing device prevents sleep'
+    Assert ($null -eq (Get-IdleDecision @($playing) 100 0 95).IdleSince) 'resuming playback resets countdown'
+    Assert ((Get-IdleDecision @($paused,$browsing) 300 0 295).Mode -eq 'Due') 'paused and browsing sessions count as idle'
+    Assert ((Get-IdleDecision @() 300 0 295 $false).Mode -eq 'Unavailable') 'API failure blocks sleep'
+    Assert ((Get-IdleDecision @() 600 0 295).Remaining -eq 300) 'sleep or monitoring gap resets countdown'
+    Assert ((Get-IdleDecision @() 305 $null 300).Remaining -eq 300) 'recovery earns a fresh five minutes'
+    $steps = New-Object 'System.Collections.Generic.List[string]'
+    Invoke-IdleSleep -DisconnectWifi { $steps.Add('wifi') } -SuspendComputer { $steps.Add('sleep') }
+    Assert (($steps -join ',') -eq 'wifi,sleep') 'Wi-Fi disconnect happens before sleep (mocked)'
+    $steps.Clear()
+    $caught=$false
+    try { Invoke-IdleSleep -DisconnectWifi { throw 'mock Wi-Fi error' } -SuspendComputer { $steps.Add('sleep') } } catch { $caught=$true }
+    Assert ($caught -and $steps.Count -eq 0) 'Wi-Fi failure stops the action (mocked)'
+    $idleSessions=@(ConvertFrom-JellyfinSessions '[{"Id":"phone","PlayState":{"IsPaused":false}},{"Id":"browser","PlayState":{"IsPaused":false}}]')
+    Assert ($idleSessions.Count -eq 2) 'multiple JSON sessions are separate devices in Windows PowerShell'
+    Assert ((Get-IdleDecision $idleSessions 300 0 295).Mode -eq 'Due') 'two connected but nonplaying devices do not block sleep'
+    $mixedSessions=@(ConvertFrom-JellyfinSessions '[{"Id":"phone","PlayState":{"IsPaused":false}},{"Id":"browser","NowPlayingItem":{"Id":"test"},"PlayState":{"IsPaused":false}}]')
+    Assert ((Get-IdleDecision $mixedSessions 300 0 295).Playing -eq 1) 'real playback among multiple JSON sessions keeps PC awake'
+    $pausedSessions=@(ConvertFrom-JellyfinSessions '[{"Id":"phone","NowPlayingItem":{"Id":"test"},"PlayState":{"IsPaused":true}},{"Id":"browser","PlayState":{"IsPaused":false}}]')
+    Assert ((Get-IdleDecision $pausedSessions 300 0 295).Mode -eq 'Due') 'paused plus idle JSON sessions allow sleep'
+    $emptySessions=@(ConvertFrom-JellyfinSessions '[]')
+    Assert ($emptySessions.Count -eq 0) 'empty JSON response has zero sessions'
+    Assert ((Get-IdleDecision $emptySessions 300 0 295).Mode -eq 'Due') 'no connected devices allows sleep'
