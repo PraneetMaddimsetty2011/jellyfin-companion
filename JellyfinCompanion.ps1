@@ -38,56 +38,107 @@ $script:sessionCount = 0
 $script:connectionState = 'Not checked'
 $form = New-Object System.Windows.Forms.Form
 $form.Text = 'Jellyfin Companion'
-$form.ClientSize = New-Object System.Drawing.Size(700, 700)
+$form.AutoScaleDimensions = New-Object System.Drawing.SizeF(96,96)
+$form.AutoScaleMode = 'Dpi'
+$form.ClientSize = New-Object System.Drawing.Size(720,674)
 $form.StartPosition = 'CenterScreen'
 $form.FormBorderStyle = 'FixedSingle'
 $form.MaximizeBox = $false
-$form.AutoScaleMode = 'Dpi'
-$form.BackColor = [System.Drawing.Color]::FromArgb(22,26,35)
-$form.ForeColor = [System.Drawing.Color]::WhiteSmoke
+$form.BackColor = [System.Drawing.Color]::FromArgb(16,21,30)
+$form.ForeColor = [System.Drawing.Color]::FromArgb(237,243,252)
 $form.Font = New-Object System.Drawing.Font('Segoe UI',10)
+$muted = [System.Drawing.Color]::FromArgb(163,179,200)
+$accent = [System.Drawing.Color]::FromArgb(104,220,232)
 
-function Add-Label($text,$x,$y,$width,$height,$size=10) {
+function Add-Label($text,$x,$y,$width,$height,$size=10,$parent=$form) {
     $label = New-Object System.Windows.Forms.Label
     $label.Text=$text; $label.SetBounds($x,$y,$width,$height)
     $label.Font=New-Object System.Drawing.Font('Segoe UI',$size)
-    $form.Controls.Add($label); return $label
+    $label.BackColor=[System.Drawing.Color]::Transparent
+    $parent.Controls.Add($label); return $label
 }
-function Add-Button($text,$x,$y,$width) {
+function Add-Button($text,$x,$y,$width,$parent=$form) {
     $button=New-Object System.Windows.Forms.Button
-    $button.Text=$text; $button.SetBounds($x,$y,$width,40)
-    $button.FlatStyle='Flat'; $button.BackColor=[System.Drawing.Color]::FromArgb(45,58,78)
-    $form.Controls.Add($button); return $button
+    $button.Text=$text; $button.SetBounds($x,$y,$width,38)
+    $button.FlatStyle='Flat'; $button.FlatAppearance.BorderSize=0
+    $button.BackColor=[System.Drawing.Color]::FromArgb(43,57,77)
+    $button.FlatAppearance.MouseOverBackColor=[System.Drawing.Color]::FromArgb(57,76,100)
+    $button.FlatAppearance.MouseDownBackColor=[System.Drawing.Color]::FromArgb(35,48,66)
+    $button.Cursor=[System.Windows.Forms.Cursors]::Hand
+    $parent.Controls.Add($button); return $button
 }
-$null=Add-Label 'Jellyfin Companion' 28 20 640 44 24
-$null=Add-Label 'Your server address and auto sleep, together.' 30 70 640 28 11
-$null=Add-Label 'CONNECT YOUR PHONE' 30 112 640 22 9
-$networkSelector=New-Object System.Windows.Forms.ComboBox
-$networkSelector.SetBounds(30,140,640,30); $networkSelector.DropDownStyle='DropDownList'
-$networkSelector.DisplayMember='Display'; $form.Controls.Add($networkSelector)
-$urlBox=New-Object System.Windows.Forms.TextBox
-$urlBox.SetBounds(30,182,640,40); $urlBox.ReadOnly=$true
-$urlBox.Font=New-Object System.Drawing.Font('Segoe UI',18)
-$urlBox.BackColor=[System.Drawing.Color]::FromArgb(35,42,55)
-$urlBox.ForeColor=[System.Drawing.Color]::FromArgb(113,225,241)
-$form.Controls.Add($urlBox)
-$copy=Add-Button 'Copy address' 30 237 200
-$open=Add-Button 'Open Jellyfin' 250 237 200
-$refresh=Add-Button 'Refresh' 470 237 200
-$addressStatus=Add-Label 'Checking your network...' 30 291 640 42 10
-$null=Add-Label 'AUTO SLEEP' 30 351 640 24 9
-$null=Add-Label 'After 5 minutes without playback: disconnect Wi-Fi, then sleep.' 30 381 640 24 11
-$null=Add-Label 'Any playing device resets the timer. Paused playback counts as idle.' 30 409 640 24 10
-$sleepStatus=Add-Label 'Auto sleep is OFF' 30 449 640 26 12
-$countdown=Add-Label 'PC stays on' 30 481 640 54 27
-$countdown.ForeColor=[System.Drawing.Color]::FromArgb(113,225,241)
-$toggle=Add-Button 'Start auto sleep' 30 550 200
-$settingsButton=Add-Button 'Connection settings' 250 550 200
-$close=Add-Button 'Close and stop' 470 550 200
-$hint=Add-Label 'Keep this window open or minimized. Closing it stops auto sleep.' 30 608 640 27 10
-$updated=Add-Label 'Network addresses refresh every 10 seconds.' 30 647 640 24 9
-$updated.ForeColor=[System.Drawing.Color]::Silver
+function Add-Card($x,$y,$width,$height) {
+    $panel=New-Object System.Windows.Forms.Panel
+    $panel.SetBounds($x,$y,$width,$height)
+    $panel.BackColor=[System.Drawing.Color]::FromArgb(27,35,48)
+    $form.Controls.Add($panel); return $panel
+}
+$null=Add-Label 'Jellyfin Companion' 24 20 460 38 22
+$subtitle=Add-Label 'Your server, at a glance.' 26 62 450 25 10
+$subtitle.ForeColor=$muted
+$settingsButton=Add-Button 'Connection settings' 526 28 170
 
+$networkCard=Add-Card 24 104 672 256
+$networkHeading=Add-Label 'Network connection' 20 14 632 26 13 $networkCard
+$networkHint=Add-Label 'Use any device on the same Wi-Fi or Ethernet network.' 20 43 632 22 9 $networkCard
+$networkHint.ForeColor=$muted
+$networkSelector=New-Object System.Windows.Forms.ComboBox
+$networkSelector.SetBounds(20,70,632,30)
+$networkSelector.DropDownStyle='DropDownList'; $networkSelector.FlatStyle='Flat'
+$networkSelector.BackColor=[System.Drawing.Color]::FromArgb(43,57,77)
+$networkSelector.ForeColor=$form.ForeColor
+$networkSelector.DisplayMember='Display'; $networkSelector.AccessibleName='Network connection'
+$networkSelector.DrawMode='OwnerDrawFixed'; $networkSelector.ItemHeight=24
+$networkSelector.Add_DrawItem({
+    param($sender,$eventArgs)
+    $background=[System.Drawing.Color]::FromArgb(43,57,77)
+    if (($eventArgs.State -band [System.Windows.Forms.DrawItemState]::Selected) -ne 0) {
+        $background=[System.Drawing.Color]::FromArgb(55,76,100)
+    }
+    $brush=New-Object System.Drawing.SolidBrush($background)
+    try { $eventArgs.Graphics.FillRectangle($brush,$eventArgs.Bounds) } finally { $brush.Dispose() }
+    $text=if ($eventArgs.Index -ge 0) { $sender.Items[$eventArgs.Index].Display } else { $sender.Text }
+    $bounds=New-Object System.Drawing.Rectangle(($eventArgs.Bounds.X+8),$eventArgs.Bounds.Y,([Math]::Max(1,$eventArgs.Bounds.Width-16)),$eventArgs.Bounds.Height)
+    $flags=[System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::EndEllipsis -bor [System.Windows.Forms.TextFormatFlags]::NoPrefix
+    [System.Windows.Forms.TextRenderer]::DrawText($eventArgs.Graphics,[string]$text,$sender.Font,$bounds,$sender.ForeColor,$flags)
+})
+$networkCard.Controls.Add($networkSelector)
+$addressPanel=New-Object System.Windows.Forms.Panel
+$addressPanel.SetBounds(20,112,632,44)
+$addressPanel.BackColor=[System.Drawing.Color]::FromArgb(17,25,36)
+$networkCard.Controls.Add($addressPanel)
+$urlBox=New-Object System.Windows.Forms.TextBox
+$urlBox.SetBounds(12,7,608,30); $urlBox.ReadOnly=$true; $urlBox.BorderStyle='None'
+$urlBox.Font=New-Object System.Drawing.Font('Segoe UI',17)
+$urlBox.BackColor=$addressPanel.BackColor; $urlBox.ForeColor=$accent
+$urlBox.AccessibleName='Jellyfin server address'
+$addressPanel.Controls.Add($urlBox)
+$copy=Add-Button 'Copy address' 20 170 202 $networkCard
+$open=Add-Button 'Open Jellyfin' 234 170 202 $networkCard
+$refresh=Add-Button 'Refresh' 448 170 204 $networkCard
+$addressStatus=Add-Label 'Checking your network...' 20 223 632 22 9 $networkCard
+$addressStatus.ForeColor=$muted
+
+$sleepCard=Add-Card 24 376 672 220
+$null=Add-Label 'Auto sleep' 20 14 632 27 13 $sleepCard
+$null=Add-Label 'Sleep after 5 minutes without playback.' 20 47 632 24 11 $sleepCard
+$sleepHint=Add-Label 'Disconnects Wi-Fi first. Paused playback counts as idle.' 20 77 632 23 9 $sleepCard
+$sleepHint.ForeColor=$muted
+$sleepStatus=Add-Label 'Auto sleep is OFF' 20 111 632 27 10 $sleepCard
+$countdown=Add-Label 'PC stays on' 20 148 390 52 25 $sleepCard
+$countdown.ForeColor=$accent
+$toggle=Add-Button 'Start auto sleep' 436 151 216 $sleepCard
+$toggle.Height=42
+$toggle.BackColor=$accent
+$toggle.ForeColor=[System.Drawing.Color]::FromArgb(16,28,38)
+$toggle.Font=New-Object System.Drawing.Font('Segoe UI',10,[System.Drawing.FontStyle]::Bold)
+$toggle.FlatAppearance.MouseOverBackColor=[System.Drawing.Color]::FromArgb(137,235,244)
+$toggle.FlatAppearance.MouseDownBackColor=[System.Drawing.Color]::FromArgb(75,193,207)
+$hint=Add-Label 'Minimize to keep monitoring. Closing stops auto sleep.' 24 613 540 24 9
+$hint.ForeColor=$muted
+$updated=Add-Label 'Network addresses refresh every 10 seconds.' 24 643 540 22 9
+$updated.ForeColor=$muted
+$close=Add-Button 'Close' 586 616 110
 function Write-MonitorState {
     try {
         [pscustomobject]@{Time=(Get-Date -Format o);ProcessId=$PID;SleepArmed=$script:armed;Status=$sleepStatus.Text;Countdown=$countdown.Text;Connection=$script:connectionState;Sessions=$script:sessionCount;Playing=$script:playing} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $script:CompanionData 'monitor-state.json')
@@ -117,7 +168,7 @@ function Show-SelectedAddress {
     }
     $urlBox.Text=$item.Url
     $addressStatus.Text=if ($item.Listening) {
-        'Server port is listening. Use this address from a device on the same network.'
+        'Server port is listening. Ready for devices on this network.'
     } else { 'Server port is not listening. Start Jellyfin and refresh.' }
 }
 function Update-Addresses {
@@ -145,6 +196,7 @@ function Show-ConnectionSettings {
     $dialog.Text='Jellyfin connection settings'; $dialog.ClientSize=New-Object System.Drawing.Size(540,275)
     $dialog.StartPosition='CenterParent'; $dialog.FormBorderStyle='FixedDialog'; $dialog.MaximizeBox=$false; $dialog.MinimizeBox=$false
     $dialog.Font=New-Object System.Drawing.Font('Segoe UI',10)
+    $dialog.BackColor=$form.BackColor; $dialog.ForeColor=$form.ForeColor
     $urlLabel=New-Object System.Windows.Forms.Label; $urlLabel.Text='Local Jellyfin server URL'; $urlLabel.SetBounds(20,18,500,24); $dialog.Controls.Add($urlLabel)
     $serverInput=New-Object System.Windows.Forms.TextBox; $serverInput.Text=$script:ServerUrl; $serverInput.SetBounds(20,46,500,28); $dialog.Controls.Add($serverInput)
     $keyLabel=New-Object System.Windows.Forms.Label; $keyLabel.Text='API key (leave blank to keep your saved key)'; $keyLabel.SetBounds(20,88,500,24); $dialog.Controls.Add($keyLabel)
@@ -152,6 +204,17 @@ function Show-ConnectionSettings {
     $note=New-Object System.Windows.Forms.Label; $note.Text='Create a key in Jellyfin Dashboard > API Keys. It is saved encrypted for your Windows account.'; $note.SetBounds(20,158,500,48); $dialog.Controls.Add($note)
     $save=New-Object System.Windows.Forms.Button; $save.Text='Test and save'; $save.SetBounds(20,218,165,36); $dialog.Controls.Add($save)
     $cancel=New-Object System.Windows.Forms.Button; $cancel.Text='Cancel'; $cancel.SetBounds(355,218,165,36); $dialog.Controls.Add($cancel)
+    foreach ($inputBox in @($serverInput,$keyInput)) {
+        $inputBox.BackColor=[System.Drawing.Color]::FromArgb(43,57,77)
+        $inputBox.ForeColor=$form.ForeColor; $inputBox.BorderStyle='FixedSingle'
+    }
+    $note.ForeColor=$muted
+    foreach ($actionButton in @($save,$cancel)) {
+        $actionButton.FlatStyle='Flat'; $actionButton.FlatAppearance.BorderSize=0
+        $actionButton.BackColor=[System.Drawing.Color]::FromArgb(43,57,77)
+        $actionButton.Cursor=[System.Windows.Forms.Cursors]::Hand
+    }
+    $save.BackColor=$accent; $save.ForeColor=[System.Drawing.Color]::FromArgb(16,28,38)
     $cancel.Add_Click({$dialog.Close()})
     $save.Add_Click({
         $candidate=if ($keyInput.Text.Trim()) {$keyInput.Text.Trim()} else {$script:ApiKey}
