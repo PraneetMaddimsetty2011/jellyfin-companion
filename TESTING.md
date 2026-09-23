@@ -14,12 +14,14 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Settings.Tests.p
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Http.Tests.ps1
 ```
 
-The 42 checks cover:
+The 46 checks cover:
 
 - Five-minute thresholds, playback resets, paused and browsing sessions,
   multiple-session JSON parsing, malformed sessions, and monitoring gaps.
 - Wi-Fi-before-sleep action order, failure handling, connected-adapter selection,
   and Ethernet-only operation using injected actions rather than real power changes.
+- Sleep versus shutdown routing, Wi-Fi-before-shutdown ordering, failure blocking,
+  and rejection of unsupported actions, all without executing a real power action.
 - Local URL validation, encrypted credential round trips in an isolated temporary
   directory, and recovery from corrupt settings.
 - Real loopback HTTP requests against a local test fixture with synthetic
@@ -54,7 +56,7 @@ author identity remain visible; private runtime data is not included.
 
 ## Limits
 
-Tests do not actually disconnect a network or put the test PC to sleep. The
+Tests do not actually disconnect a network, put the test PC to sleep, or shut it down. The
 operating-system calls and their order are reviewed and tested with mocks;
 successful sleep and wake depend on the target machine's drivers and policies.
 Testing in an isolated data folder is not the same as testing every supported

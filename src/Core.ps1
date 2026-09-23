@@ -15,7 +15,7 @@ function Disconnect-ConnectedWifi {
         [scriptblock]$Disconnect = {
             param([string]$InterfaceName)
             $null = & "$env:SystemRoot\System32\netsh.exe" wlan disconnect ("interface=" + $InterfaceName) 2>&1
-            if ($LASTEXITCODE -ne 0) { throw 'Windows could not disconnect Wi-Fi. Sleep was not requested.' }
+            if ($LASTEXITCODE -ne 0) { throw 'Windows could not disconnect Wi-Fi. The power action was not requested.' }
         }
     )
     foreach ($adapter in $Adapters) {
@@ -25,18 +25,24 @@ function Disconnect-ConnectedWifi {
     }
 }
 
-function Invoke-IdleSleep {
+function Invoke-IdlePowerAction {
     param(
+        [ValidateSet('Sleep','Shutdown')][string]$Action = 'Sleep',
         [scriptblock]$DisconnectWifi = {
             Disconnect-ConnectedWifi
         },
         [scriptblock]$SuspendComputer = {
             $accepted = [System.Windows.Forms.Application]::SetSuspendState([System.Windows.Forms.PowerState]::Suspend, $true, $false)
             if (-not $accepted) { throw 'Windows rejected the sleep request.' }
+        },
+        [scriptblock]$ShutdownComputer = {
+            # /t 0 without /f permits applications with unsaved work to block shutdown.
+            & "$env:SystemRoot\System32\shutdown.exe" /s /t 0 /d p:0:0 /c 'Jellyfin has had no playback for five minutes.'
+            if ($LASTEXITCODE -ne 0) { throw 'Windows rejected the shutdown request.' }
         }
     )
     & $DisconnectWifi
-    & $SuspendComputer
+    if ($Action -eq 'Shutdown') { & $ShutdownComputer } else { & $SuspendComputer }
 }
 function ConvertFrom-JellyfinSessions {
     param([string]$Json)

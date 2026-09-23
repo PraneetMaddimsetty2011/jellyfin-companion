@@ -1,14 +1,14 @@
 # Jellyfin Companion
 
-A small Windows desktop app that combines a Jellyfin server address finder with playback-aware auto sleep. Built for Windows 10/11 with Windows PowerShell 5.1 and Windows Forms; no extra runtime is required. Normal use does not require administrator access, though managed PCs can restrict network or power operations.
+A small Windows desktop app that combines a Jellyfin server address finder with playback-aware auto sleep or shutdown. Built for Windows 10/11 with Windows PowerShell 5.1 and Windows Forms; no extra runtime is required. Normal use does not require administrator access, though managed PCs can restrict network or power operations.
 
 ## Features
 
 - Find your server's Wi-Fi or Ethernet address, copy it, or open Jellyfin.
 - Refresh network addresses every ten seconds, including when switching networks or using a phone hotspot.
-- Start or stop a five-minute playback-idle timer in the same window.
+- Choose **Sleep** or **Shut down**, then start or stop a five-minute playback-idle timer in the same window.
 - Avoid triggering sleep while Jellyfin reports playback on any device. Paused sessions and connected devices that are only browsing count as idle.
-- At five minutes idle, disconnect Wi-Fi and request immediate Windows sleep. Open applications remain open.
+- At five minutes idle, disconnect Wi-Fi and request the selected Windows power action. Sleep preserves open applications; shutdown closes them.
 - Reset the countdown on a Jellyfin API error or a long monitoring interruption.
 - Store your API key encrypted for the current Windows account, outside the repository.
 
@@ -23,13 +23,17 @@ A small Windows desktop app that combines a Jellyfin server address finder with 
    ```
 
 4. Open **Connection settings**, enter a local server URL and an API key from **Jellyfin Dashboard > API Keys**, then click **Test and save**. The default is `http://localhost:8096`; a standard local Jellyfin network configuration is detected automatically.
-5. Use the address at the top to connect your phone on the same network. Click **Start auto sleep** before leaving.
+5. Use the address at the top to connect any device on the same network. Choose **Sleep** or **Shut down**, then click **Start auto sleep** or **Start auto shutdown** before leaving.
 
-Opening the app normally leaves auto sleep **off**, so you can check your address without starting a sleep timer. Keep the window open or minimized while monitoring. Closing it stops monitoring. To start with monitoring enabled:
+Opening the app normally selects **Sleep** and leaves monitoring **off**, so you can check your address without starting a timer. The action selector is locked while monitoring; click Stop before changing it. Keep the window open or minimized while monitoring. Closing it stops monitoring. To start with monitoring enabled:
 
 ```powershell
 powershell.exe -NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File .\JellyfinCompanion.ps1 -StartMonitoring
 ```
+
+For auto shutdown, add `-PowerAction Shutdown` to that command. Without `-StartMonitoring`, this option only selects the action and does not arm it. The UI choice is not saved between launches; Sleep remains the default.
+
+Save your work before starting auto shutdown. It uses `shutdown.exe /s /t 0` without `/f`, so apps with unsaved work may block shutdown. It does not force-close those apps. Wi-Fi has already disconnected by the time Windows receives the request.
 
 After the sleep action, monitoring stays off when the PC wakes. Reconnect Wi-Fi if needed, then start monitoring again. Wi-Fi profiles are preserved; the adapter is not disabled. The app does not install a Windows startup task.
 
@@ -39,7 +43,7 @@ After the sleep action, monitoring stays off when the PC wakes. Reconnect Wi-Fi 
 - Activity in other PC apps does not reset the timer. This is a Jellyfin playback timer, not a keyboard/mouse idle timer.
 - Playback detection depends on clients reporting their current state to Jellyfin. A client that leaves a stale playing state may keep the PC awake until Jellyfin clears it.
 - A connection or authentication failure resets the countdown and keeps the PC awake.
-- The final action disconnects each connected Wi-Fi adapter with `netsh wlan disconnect`, then calls `Application.SetSuspendState(Suspend, true, false)`. Ethernet-only PCs skip Wi-Fi disconnection. If a connected Wi-Fi adapter cannot disconnect, sleep is not requested.
+- The final action disconnects each connected Wi-Fi adapter with `netsh wlan disconnect`, then calls `Application.SetSuspendState(Suspend, true, false)` for Sleep or `shutdown.exe /s /t 0` for Shut down. Ethernet-only PCs skip Wi-Fi disconnection. If a connected Wi-Fi adapter cannot disconnect, neither power action is requested.
 - Windows and drivers ultimately control power transitions and wake events. The app does not change system power policies or override the PC's existing automatic sleep timeout. Configure that timeout appropriately if it is shorter than your viewing session.
 - The address finder checks local listening ports; it cannot verify firewall access from your phone. The displayed address is for the local network, not a public internet endpoint.
 - Only local HTTP(S) server URLs are accepted. Redirects are not followed when sending an API key.

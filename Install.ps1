@@ -16,8 +16,8 @@ $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcutPath)
 $shortcut.TargetPath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $shortcut.Arguments = '-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + (Join-Path $PSScriptRoot 'JellyfinCompanion.ps1') + '" -DataDirectory "' + $DataDirectory + '"'
 $shortcut.WorkingDirectory = $PSScriptRoot
-$shortcut.Description = 'Jellyfin server address and playback-aware Wi-Fi disconnect / auto sleep.'
+$shortcut.Description = 'Jellyfin server address and playback-aware auto sleep or shutdown.'
 $shortcut.IconLocation = Join-Path $env:SystemRoot 'System32\shell32.dll,14'
 $shortcut.Save()
 Write-Output "Installed desktop shortcut: $shortcutPath"
-Write-Output 'Open it and click Start auto sleep when ready. No startup task is installed.'
+Write-Output 'Open it, choose Sleep or Shut down, then click Start when ready. No startup task is installed.'

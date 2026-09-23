@@ -14,11 +14,11 @@ $ErrorActionPreference = 'Stop'
     Assert ((Get-IdleDecision @() 600 0 295).Remaining -eq 300) 'sleep or monitoring gap resets countdown'
     Assert ((Get-IdleDecision @() 305 $null 300).Remaining -eq 300) 'recovery earns a fresh five minutes'
     $steps = New-Object 'System.Collections.Generic.List[string]'
-    Invoke-IdleSleep -DisconnectWifi { $steps.Add('wifi') } -SuspendComputer { $steps.Add('sleep') }
+    Invoke-IdlePowerAction -Action Sleep -DisconnectWifi { $steps.Add('wifi') } -SuspendComputer { $steps.Add('sleep') }
     Assert (($steps -join ',') -eq 'wifi,sleep') 'Wi-Fi disconnect happens before sleep (mocked)'
     $steps.Clear()
     $caught=$false
-    try { Invoke-IdleSleep -DisconnectWifi { throw 'mock Wi-Fi error' } -SuspendComputer { $steps.Add('sleep') } } catch { $caught=$true }
+    try { Invoke-IdlePowerAction -Action Sleep -DisconnectWifi { throw 'mock Wi-Fi error' } -SuspendComputer { $steps.Add('sleep') } } catch { $caught=$true }
     Assert ($caught -and $steps.Count -eq 0) 'Wi-Fi failure stops the action (mocked)'
     $idleSessions=@(ConvertFrom-JellyfinSessions '[{"Id":"phone","PlayState":{"IsPaused":false}},{"Id":"browser","PlayState":{"IsPaused":false}}]')
     Assert ($idleSessions.Count -eq 2) 'multiple JSON sessions are separate devices in Windows PowerShell'
@@ -45,3 +45,16 @@ Assert ($disconnected.Count -eq 0) 'Ethernet-only PC skips Wi-Fi disconnection (
 $rejected=$false
 try {ConvertFrom-JellyfinSessions '[null]'} catch {$rejected=$true}
 Assert $rejected 'malformed session cannot be treated as zero playback'
+
+$powerSteps=New-Object 'System.Collections.Generic.List[string]'
+Invoke-IdlePowerAction -Action Shutdown -DisconnectWifi {$powerSteps.Add('wifi')} -SuspendComputer {throw 'Sleep must not run'} -ShutdownComputer {$powerSteps.Add('shutdown')}
+Assert (($powerSteps -join ',') -eq 'wifi,shutdown') 'shutdown mode disconnects Wi-Fi then shuts down, never sleeps (mocked)'
+$powerSteps.Clear()
+Invoke-IdlePowerAction -Action Sleep -DisconnectWifi {$powerSteps.Add('wifi')} -SuspendComputer {$powerSteps.Add('sleep')} -ShutdownComputer {throw 'Shutdown must not run'}
+Assert (($powerSteps -join ',') -eq 'wifi,sleep') 'sleep mode never invokes shutdown (mocked)'
+$powerSteps.Clear(); $failed=$false
+try {Invoke-IdlePowerAction -Action Shutdown -DisconnectWifi {throw 'mock failure'} -ShutdownComputer {$powerSteps.Add('shutdown')}} catch {$failed=$true}
+Assert ($failed -and $powerSteps.Count -eq 0) 'failed Wi-Fi disconnect blocks shutdown (mocked)'
+$invalidAction=$false
+try {Invoke-IdlePowerAction -Action Restart -DisconnectWifi {throw 'Must not execute'}} catch {$invalidAction=$true}
+Assert $invalidAction 'unsupported power action is rejected'

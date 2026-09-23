@@ -1,4 +1,5 @@
 param([switch]$StartMonitoring, [switch]$Check, [switch]$SmokeTest, [string]$DiagnosticsPath,
+    [ValidateSet('Sleep','Shutdown')][string]$PowerAction = 'Sleep',
     [string]$DataDirectory = (Join-Path $env:LOCALAPPDATA 'JellyfinCompanion'))
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'src\Core.ps1')
@@ -11,7 +12,7 @@ if ($Check) {
     if ($settingsError) { throw $settingsError }
     $sessions = @(Get-ServerSessions)
     $decision = Get-IdleDecision $sessions 0 $null $null
-    [pscustomobject]@{Server=$script:ServerUrl;Sessions=$sessions.Count;Playing=$decision.Playing;SleepArmed=$false;Connection='OK'} | Format-List
+    [pscustomobject]@{Server=$script:ServerUrl;Sessions=$sessions.Count;Playing=$decision.Playing;MonitoringArmed=$false;PowerAction=$PowerAction;Connection='OK'} | Format-List
     @(Get-JellyfinAddresses) | Select-Object Adapter,Url,Listening | Format-Table
     exit 0
 }
@@ -22,11 +23,12 @@ $created = $false
 $mutexName = if ($SmokeTest) { 'Local\JellyfinCompanion-SmokeTest' } else { 'Local\JellyfinCompanion' }
 $mutex = [System.Threading.Mutex]::new($true, $mutexName, [ref]$created)
 if (-not $created) {
-    [System.Windows.Forms.MessageBox]::Show('Jellyfin Companion is already open. Use its window to start or stop auto sleep.', 'Jellyfin Companion') | Out-Null
+    [System.Windows.Forms.MessageBox]::Show('Jellyfin Companion is already open. Use its window to start or stop monitoring.', 'Jellyfin Companion') | Out-Null
     $mutex.Dispose(); exit 0
 }
 
 $script:armed = $false
+$script:powerAction = $PowerAction
 $script:idleSince = $null
 $script:previousCheck = $null
 $script:nextCheck = 0.0
@@ -120,8 +122,16 @@ $addressStatus=Add-Label 'Checking your network...' 20 223 632 22 9 $networkCard
 $addressStatus.ForeColor=$muted
 
 $sleepCard=Add-Card 24 376 672 220
-$null=Add-Label 'Auto sleep' 20 14 632 27 13 $sleepCard
-$null=Add-Label 'Sleep after 5 minutes without playback.' 20 47 632 24 11 $sleepCard
+$null=Add-Label 'When playback stops' 20 14 370 27 13 $sleepCard
+$sleepOption=New-Object System.Windows.Forms.RadioButton
+$sleepOption.Text='Sleep'; $sleepOption.SetBounds(425,14,85,28)
+$sleepOption.FlatStyle='Flat'; $sleepCard.Controls.Add($sleepOption)
+$shutdownOption=New-Object System.Windows.Forms.RadioButton
+$shutdownOption.Text='Shut down'; $shutdownOption.SetBounds(524,14,128,28)
+$shutdownOption.FlatStyle='Flat'; $sleepCard.Controls.Add($shutdownOption)
+$sleepOption.Checked=$script:powerAction -eq 'Sleep'
+$shutdownOption.Checked=$script:powerAction -eq 'Shutdown'
+$actionDescription=Add-Label 'Sleep after 5 minutes without playback.' 20 47 632 24 11 $sleepCard
 $sleepHint=Add-Label 'Disconnects Wi-Fi first. Paused playback counts as idle.' 20 77 632 23 9 $sleepCard
 $sleepHint.ForeColor=$muted
 $sleepStatus=Add-Label 'Auto sleep is OFF' 20 111 632 27 10 $sleepCard
@@ -134,19 +144,29 @@ $toggle.ForeColor=[System.Drawing.Color]::FromArgb(16,28,38)
 $toggle.Font=New-Object System.Drawing.Font('Segoe UI',10,[System.Drawing.FontStyle]::Bold)
 $toggle.FlatAppearance.MouseOverBackColor=[System.Drawing.Color]::FromArgb(137,235,244)
 $toggle.FlatAppearance.MouseDownBackColor=[System.Drawing.Color]::FromArgb(75,193,207)
-$hint=Add-Label 'Minimize to keep monitoring. Closing stops auto sleep.' 24 613 540 24 9
+$hint=Add-Label 'Minimize to keep monitoring. Closing cancels the timer.' 24 613 540 24 9
 $hint.ForeColor=$muted
 $updated=Add-Label 'Network addresses refresh every 10 seconds.' 24 643 540 22 9
 $updated.ForeColor=$muted
 $close=Add-Button 'Close' 586 616 110
 function Write-MonitorState {
     try {
-        [pscustomobject]@{Time=(Get-Date -Format o);ProcessId=$PID;SleepArmed=$script:armed;Status=$sleepStatus.Text;Countdown=$countdown.Text;Connection=$script:connectionState;Sessions=$script:sessionCount;Playing=$script:playing} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $script:CompanionData 'monitor-state.json')
+        [pscustomobject]@{Time=(Get-Date -Format o);ProcessId=$PID;MonitoringArmed=$script:armed;PowerAction=$script:powerAction;Status=$sleepStatus.Text;Countdown=$countdown.Text;Connection=$script:connectionState;Sessions=$script:sessionCount;Playing=$script:playing} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $script:CompanionData 'monitor-state.json')
     } catch { }
 }
 function Set-MonitorStopped {
     $script:armed=$false; $script:idleSince=$null; $script:previousCheck=$null
-    $toggle.Text='Start auto sleep'; $sleepStatus.Text='Auto sleep is OFF'; $countdown.Text='PC stays on'
+    $sleepOption.Enabled=$true; $shutdownOption.Enabled=$true
+    if ($script:powerAction -eq 'Shutdown') {
+        $toggle.Text='Start auto shutdown'; $sleepStatus.Text='Auto shutdown is OFF'
+        $actionDescription.Text='Shut down after 5 minutes without playback.'
+        $sleepHint.Text='Wi-Fi disconnects first. Paused counts as idle. Save your work.'
+    } else {
+        $toggle.Text='Start auto sleep'; $sleepStatus.Text='Auto sleep is OFF'
+        $actionDescription.Text='Sleep after 5 minutes without playback.'
+        $sleepHint.Text='Disconnects Wi-Fi first. Paused playback counts as idle.'
+    }
+    $countdown.Text='PC stays on'
     Write-MonitorState
 }
 function Start-Monitor {
@@ -156,7 +176,9 @@ function Start-Monitor {
         return
     }
     $script:armed=$true; $script:idleSince=$null; $script:previousCheck=$null; $script:nextCheck=0
-    $toggle.Text='Stop auto sleep'; $sleepStatus.Text='Checking playback...'; $countdown.Text='05:00'
+    $sleepOption.Enabled=$false; $shutdownOption.Enabled=$false
+    $toggle.Text=if ($script:powerAction -eq 'Shutdown') {'Stop auto shutdown'} else {'Stop auto sleep'}
+    $sleepStatus.Text='Checking playback...'; $countdown.Text='05:00'
     Write-MonitorState
 }
 function Show-SelectedAddress {
@@ -220,7 +242,7 @@ function Show-ConnectionSettings {
         $candidate=if ($keyInput.Text.Trim()) {$keyInput.Text.Trim()} else {$script:ApiKey}
         try {
             Save-CompanionSettings -Url $serverInput.Text.Trim() -ApiKey $candidate
-            $sleepStatus.Text='Connection verified. Click Start auto sleep when ready.'
+            $sleepStatus.Text='Connection verified. Choose an action, then click Start.'
             $script:connectionState='OK'; $dialog.Close()
         } catch { $note.Text='Could not verify the connection. Check the local URL and API key.' }
     })
@@ -229,6 +251,8 @@ function Show-ConnectionSettings {
 }
 
 $networkSelector.Add_SelectedIndexChanged({Show-SelectedAddress})
+$sleepOption.Add_CheckedChanged({if ($sleepOption.Checked) {$script:powerAction='Sleep'; Set-MonitorStopped}})
+$shutdownOption.Add_CheckedChanged({if ($shutdownOption.Checked) {$script:powerAction='Shutdown'; Set-MonitorStopped}})
 $refresh.Add_Click({Update-Addresses})
 $copy.Add_Click({
     if ($urlBox.Text) {
@@ -265,31 +289,35 @@ $timer.Add_Tick({
             switch ($decision.Mode) {
                 'Playing' {$sleepStatus.Text='Playback active on {0} device(s)' -f $decision.Playing; $countdown.Text='PC stays on'}
                 'Idle' {
-                    $sleepStatus.Text='Nobody is playing - sleep countdown'
+                    $sleepStatus.Text=if ($script:powerAction -eq 'Shutdown') {'Nobody is playing - shutdown countdown'} else {'Nobody is playing - sleep countdown'}
                     $countdown.Text='{0:00}:{1:00}' -f [int][Math]::Floor($decision.Remaining/60),[int]($decision.Remaining%60)
                 }
                 'Due' {
                     Set-MonitorStopped
-                    $sleepStatus.Text='Disconnecting Wi-Fi and putting this PC to sleep...'; $countdown.Text='Going to sleep'
+                    $sleepOption.Enabled=$false; $shutdownOption.Enabled=$false
+                    $sleepStatus.Text='Disconnecting Wi-Fi and requesting ' + $script:powerAction.ToLower() + '...'
+                    $countdown.Text=if ($script:powerAction -eq 'Shutdown') {'Shutting down'} else {'Going to sleep'}
                     Write-MonitorState
-                    Write-CompanionLog 'Five minutes of confirmed playback inactivity. Disconnecting Wi-Fi, then requesting sleep.'
-                    Invoke-IdleSleep
-                    Write-CompanionLog 'Sleep request returned. Monitoring remains OFF.'
-                    $sleepStatus.Text='Auto sleep is OFF. Reconnect Wi-Fi if needed.'; $countdown.Text='PC stays on'
+                    Write-CompanionLog ('Five minutes of confirmed playback inactivity. Disconnecting Wi-Fi, then requesting ' + $script:powerAction + '.')
+                    Invoke-IdlePowerAction -Action $script:powerAction
+                    Write-CompanionLog ($script:powerAction + ' request returned. Monitoring remains OFF.')
+                    Set-MonitorStopped
+                    $sleepStatus.Text=if ($script:powerAction -eq 'Shutdown') {'Shutdown requested. Unsaved work may block it.'} else {'Auto sleep is OFF. Reconnect Wi-Fi if needed.'}
                 }
             }
         } catch {
             $script:idleSince=$null; $script:previousCheck=$null
             if ($script:armed) {$script:connectionState='Unavailable'; $sleepStatus.Text='Cannot verify playback - countdown reset'}
-            else {$sleepStatus.Text='Sleep action failed. Monitoring is OFF.'; Write-CompanionLog 'Wi-Fi disconnect or sleep failed. No further action will run until started again.'}
+            else {Set-MonitorStopped; $sleepStatus.Text='Power action failed. Monitoring is OFF.'; Write-CompanionLog 'Wi-Fi disconnect or power action failed. No further action will run until started again.'}
             $countdown.Text='PC stays on'
         } finally {$script:nextCheck=$script:clock.Elapsed.TotalSeconds+5; Write-MonitorState}
     } finally {$script:busy=$false}
 })
 $form.Add_Shown({
     Update-Addresses
+    Set-MonitorStopped
     if ($settingsError) {$sleepStatus.Text=$settingsError}
-    elseif (-not $script:ApiKey) {$sleepStatus.Text='Set up your API key in Connection settings to enable auto sleep.'}
+    elseif (-not $script:ApiKey) {$sleepStatus.Text='Set up your API key in Connection settings to enable the timer.'}
     if ($StartMonitoring -and -not $SmokeTest) {Start-Monitor}
     Write-MonitorState
     if ($SmokeTest) {
@@ -299,7 +327,7 @@ $form.Add_Shown({
         $form.DrawToBitmap($bitmap,(New-Object System.Drawing.Rectangle(0,0,$form.Width,$form.Height)))
         $bitmap.Save((Join-Path $DiagnosticsPath 'companion.png'),[System.Drawing.Imaging.ImageFormat]::Png)
         $bitmap.Dispose()
-        [pscustomobject]@{Title=$form.Text;SleepArmed=$script:armed;AddressCount=$networkSelector.Items.Count;Address=$urlBox.Text;Status=$sleepStatus.Text;Controls=$form.Controls.Count} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $DiagnosticsPath 'ui-test.json')
+        [pscustomobject]@{Title=$form.Text;MonitoringArmed=$script:armed;PowerAction=$script:powerAction;StartButton=$toggle.Text;ActionDescription=$actionDescription.Text;SleepSelected=$sleepOption.Checked;ShutdownSelected=$shutdownOption.Checked;AddressCount=$networkSelector.Items.Count;Address=$urlBox.Text;Status=$sleepStatus.Text;Controls=$form.Controls.Count} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $DiagnosticsPath 'ui-test.json')
         $form.Close(); return
     }
     $timer.Start()
