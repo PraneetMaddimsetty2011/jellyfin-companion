@@ -8,3 +8,14 @@ config.json
 artifacts/
 .local/
 legacy-shortcuts/
+diagnostics/
+*.clixml
+*.env
+.env*
+*.pfx
+*.p12
+*.pem
+*.key
+*.lnk
+ui-test.json
+test-results/

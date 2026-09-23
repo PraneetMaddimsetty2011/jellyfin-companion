@@ -30,3 +30,18 @@ $ErrorActionPreference = 'Stop'
     $emptySessions=@(ConvertFrom-JellyfinSessions '[]')
     Assert ($emptySessions.Count -eq 0) 'empty JSON response has zero sessions'
     Assert ((Get-IdleDecision $emptySessions 300 0 295).Mode -eq 'Due') 'no connected devices allows sleep'
+
+$disconnected=New-Object 'System.Collections.Generic.List[string]'
+$adapters=@(
+    [pscustomobject]@{Name='Ethernet';NetworkInterfaceType='Ethernet';OperationalStatus='Up'},
+    [pscustomobject]@{Name='Wireless A';NetworkInterfaceType='Wireless80211';OperationalStatus='Up'},
+    [pscustomobject]@{Name='Wireless B';NetworkInterfaceType='Wireless80211';OperationalStatus='Down'}
+)
+Disconnect-ConnectedWifi -Adapters $adapters -Disconnect {param($name);$disconnected.Add($name)}
+Assert (($disconnected -join ',') -eq 'Wireless A') 'only connected Wi-Fi interfaces are disconnected (mocked)'
+$disconnected.Clear()
+Disconnect-ConnectedWifi -Adapters @($adapters[0]) -Disconnect {param($name);$disconnected.Add($name)}
+Assert ($disconnected.Count -eq 0) 'Ethernet-only PC skips Wi-Fi disconnection (mocked)'
+$rejected=$false
+try {ConvertFrom-JellyfinSessions '[null]'} catch {$rejected=$true}
+Assert $rejected 'malformed session cannot be treated as zero playback'

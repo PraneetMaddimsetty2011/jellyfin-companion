@@ -23,6 +23,14 @@ try {
     Initialize-CompanionSettings $testDirectory
     Assert ($script:ApiKey -eq 'synthetic-test-key') 'encrypted key loads in this Windows account'
     Assert ($script:ServerUrl -eq 'http://localhost:8096') 'connection settings persist'
+    Set-Content -LiteralPath (Join-Path $testDirectory 'config.json') -Value '{invalid'
+    $corruptRejected=$false
+    try {Initialize-CompanionSettings $testDirectory} catch {$corruptRejected=$true}
+    Assert $corruptRejected 'corrupt saved settings are detected'
+    Assert ($null -eq $script:ApiKey) 'corrupt settings do not retain an old credential in memory'
+    Save-CompanionSettings 'http://localhost:8096' 'synthetic-test-key'
+    Initialize-CompanionSettings $testDirectory
+    Assert ($script:ApiKey -eq 'synthetic-test-key') 'connection setup can repair corrupt settings'
 } finally {
     # Only these known test files are removed; no recursive deletion is used.
     foreach ($name in @('api-key.dpapi','config.json')) {

@@ -9,11 +9,26 @@ function Get-IdleDecision {
     return @{ Mode=$(if ($remaining -eq 0) {'Due'} else {'Idle'}); IdleSince=$IdleSince; Remaining=$remaining; Playing=0 }
 }
 
+function Disconnect-ConnectedWifi {
+    param(
+        [object[]]$Adapters = [System.Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces(),
+        [scriptblock]$Disconnect = {
+            param([string]$InterfaceName)
+            $null = & "$env:SystemRoot\System32\netsh.exe" wlan disconnect ("interface=" + $InterfaceName) 2>&1
+            if ($LASTEXITCODE -ne 0) { throw 'Windows could not disconnect Wi-Fi. Sleep was not requested.' }
+        }
+    )
+    foreach ($adapter in $Adapters) {
+        if ($adapter.NetworkInterfaceType -eq 'Wireless80211' -and $adapter.OperationalStatus -eq 'Up') {
+            & $Disconnect $adapter.Name
+        }
+    }
+}
+
 function Invoke-IdleSleep {
     param(
         [scriptblock]$DisconnectWifi = {
-            $disconnectOutput = & "$env:SystemRoot\System32\netsh.exe" wlan disconnect 'interface=*' 2>&1
-            if ($LASTEXITCODE -ne 0) { throw 'Windows could not disconnect Wi-Fi. Sleep was not requested.' }
+            Disconnect-ConnectedWifi
         },
         [scriptblock]$SuspendComputer = {
             $accepted = [System.Windows.Forms.Application]::SetSuspendState([System.Windows.Forms.PowerState]::Suspend, $true, $false)

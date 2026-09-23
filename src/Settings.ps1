@@ -32,15 +32,15 @@ function Initialize-CompanionSettings {
     New-Item -ItemType Directory -Path $DataDirectory -Force | Out-Null
     $script:CompanionData = $DataDirectory
     $script:ServerUrl = Get-DefaultServerUrl
+    $script:ApiKey = $null
+    # Load this even when a saved config is corrupt, so the settings dialog can repair it.
+    Import-Module (Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1') -ErrorAction Stop
     $configPath = Join-Path $DataDirectory 'config.json'
     if (Test-Path -LiteralPath $configPath) {
         $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
         Assert-LocalServerUrl $config.ServerUrl
         $script:ServerUrl = $config.ServerUrl.TrimEnd('/')
     }
-    # Explicit path prevents an inherited PowerShell 7 module path breaking PS 5.1.
-    Import-Module (Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1') -ErrorAction Stop
-    $script:ApiKey = $null
     $keyPath = Join-Path $DataDirectory 'api-key.dpapi'
     if (Test-Path -LiteralPath $keyPath) {
         $secure = (Get-Content -LiteralPath $keyPath -Raw).Trim() | ConvertTo-SecureString

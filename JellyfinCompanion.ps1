@@ -1,10 +1,11 @@
-param([switch]$StartMonitoring, [switch]$Check, [switch]$SmokeTest, [string]$DiagnosticsPath)
+param([switch]$StartMonitoring, [switch]$Check, [switch]$SmokeTest, [string]$DiagnosticsPath,
+    [string]$DataDirectory = (Join-Path $env:LOCALAPPDATA 'JellyfinCompanion'))
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'src\Core.ps1')
 . (Join-Path $PSScriptRoot 'src\Settings.ps1')
 $settingsError = $null
-try { Initialize-CompanionSettings (Join-Path $env:LOCALAPPDATA 'JellyfinCompanion') }
-catch { $settingsError = 'Could not load settings. Use Connection settings to enter your key again.' }
+try { Initialize-CompanionSettings $DataDirectory }
+catch { $settingsError = 'Settings could not load. Open Connection settings to repair them.' }
 
 if ($Check) {
     if ($settingsError) { throw $settingsError }

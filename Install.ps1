@@ -1,6 +1,7 @@
-param([switch]$ImportLegacyKey)
+param([switch]$ImportLegacyKey,
+    [string]$DataDirectory = (Join-Path $env:LOCALAPPDATA 'JellyfinCompanion'),
+    [string]$ShortcutDirectory = ([Environment]::GetFolderPath('Desktop')))
 $ErrorActionPreference = 'Stop'
-$dataDirectory = Join-Path $env:LOCALAPPDATA 'JellyfinCompanion'
 New-Item -ItemType Directory -Path $dataDirectory -Force | Out-Null
 if ($ImportLegacyKey) {
     $oldKey = Join-Path $env:LOCALAPPDATA 'JellyfinIdleShutdown\api-key.dpapi'
@@ -9,10 +10,11 @@ if ($ImportLegacyKey) {
         Copy-Item -LiteralPath $oldKey -Destination $newKey
     }
 }
-$shortcutPath = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Jellyfin Companion.lnk'
+New-Item -ItemType Directory -Path $ShortcutDirectory -Force | Out-Null
+$shortcutPath = Join-Path $ShortcutDirectory 'Jellyfin Companion.lnk'
 $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcutPath)
 $shortcut.TargetPath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-$shortcut.Arguments = '-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + (Join-Path $PSScriptRoot 'JellyfinCompanion.ps1') + '"'
+$shortcut.Arguments = '-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + (Join-Path $PSScriptRoot 'JellyfinCompanion.ps1') + '" -DataDirectory "' + $DataDirectory + '"'
 $shortcut.WorkingDirectory = $PSScriptRoot
 $shortcut.Description = 'Jellyfin server address and playback-aware Wi-Fi disconnect / auto sleep.'
 $shortcut.IconLocation = Join-Path $env:SystemRoot 'System32\shell32.dll,14'
