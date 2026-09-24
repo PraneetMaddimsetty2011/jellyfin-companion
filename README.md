@@ -14,6 +14,16 @@ A small Windows desktop app that combines a Jellyfin server address finder with 
 
 ## Run
 
+### Download the Windows app
+
+Download **JellyfinCompanion.exe** from [Releases](https://github.com/PraneetMaddimsetty2011/jellyfin-companion/releases/latest) and double-click it. No source checkout or separate runtime installation is needed on a standard Windows 10/11 PC. Monitoring starts **off**.
+
+The executable bundles the reviewed application scripts and runs them with Windows PowerShell 5.1. It extracts its versioned app files under `%LOCALAPPDATA%\JellyfinCompanion\app`; your encrypted key and settings stay in the parent folder. It does not install a service or startup task. A new download can replace the old executable without deleting your settings.
+
+The app is currently unsigned, so Windows may display an unknown-publisher warning. Download only from this repository's Releases page and compare the SHA-256 checksum with the accompanying `SHA256SUMS.txt`.
+
+### Run from source
+
 1. Install and start Jellyfin Server on this Windows PC.
 2. Use GitHub's **Code > Download ZIP**, extract it into a permanent folder, or clone the repository. Do not launch it from inside the ZIP.
 3. Double-click **Start.cmd**. Alternatively, run **Install.ps1** with Windows PowerShell to add a **Jellyfin Companion** desktop shortcut:
@@ -85,6 +95,7 @@ For a UI smoke test, use `-SmokeTest -DiagnosticsPath <temporary-folder>`. It op
 - `src/Core.ps1`: network discovery, playback decisions, JSON parsing, and sleep action.
 - `src/Settings.ps1`: local connection settings and encrypted credential storage.
 - `Install.ps1`: optional desktop shortcut and legacy-key migration.
+- `Build.ps1` and `launcher/Program.cs`: build the single-file Windows launcher from source, using the .NET Framework compiler included with Windows.
 - `tests/`: tests without network or power side effects (except the separate, explicit `-Check` command).
 
 For an isolated first-run check, supply `-DataDirectory <empty-temporary-folder>` with the UI smoke test. Installation also supports `-DataDirectory` and `-ShortcutDirectory` overrides for testing without changing the normal desktop shortcut.
@@ -94,3 +105,14 @@ For an isolated first-run check, supply `-DataDirectory <empty-temporary-folder>
 No personal configuration or API key is included. Every user sets up their own connection. There is no telemetry or automatic upload. See [PRIVACY.md](PRIVACY.md) for local storage and diagnostic details, and [TESTING.md](TESTING.md) for the release checks and their limits.
 
 Licensed under the [MIT License](LICENSE), so anyone can use, modify, and redistribute the code. This is an independent utility, not an official Jellyfin project.
+
+## Build the executable
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Build.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install.ps1
+```
+
+The build writes `dist/JellyfinCompanion.exe` and `dist/SHA256SUMS.txt`. Only the main script, two source modules, and a generated icon are embedded. No local credentials, configuration, logs, or screenshots are bundled. If a built executable is available, the installer copies it into the local app data directory and makes a desktop shortcut to it; otherwise, it creates the source-script shortcut.
+
+Executable options: `--start`, `--action Sleep|Shutdown`, `--data-directory <folder>`, `--check`, and `--smoke-test --diagnostics <folder>`. Test modes ignore `--start` and never enable a power action.

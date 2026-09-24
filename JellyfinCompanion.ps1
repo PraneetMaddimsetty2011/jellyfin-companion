@@ -40,6 +40,9 @@ $script:sessionCount = 0
 $script:connectionState = 'Not checked'
 $form = New-Object System.Windows.Forms.Form
 $form.Text = 'Jellyfin Companion'
+if (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'App.ico')) {
+    $form.Icon = New-Object System.Drawing.Icon((Join-Path $PSScriptRoot 'App.ico'))
+}
 $form.AutoScaleDimensions = New-Object System.Drawing.SizeF(96,96)
 $form.AutoScaleMode = 'Dpi'
 $form.ClientSize = New-Object System.Drawing.Size(720,674)

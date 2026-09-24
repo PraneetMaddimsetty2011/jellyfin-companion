@@ -54,6 +54,19 @@ Before changing repository visibility, review:
 Commit attribution uses a GitHub no-reply address. The public GitHub owner and
 author identity remain visible; private runtime data is not included.
 
+## Executable packaging
+
+Build with `Build.ps1`, then copy only `JellyfinCompanion.exe` to a separate
+directory. Run its `--smoke-test --diagnostics <folder> --data-directory <empty-folder>`
+mode to verify extraction and first-run startup without the source checkout.
+Repeat with `--action Shutdown --start`: test mode must still remain unarmed.
+Use `--check` with an explicitly configured data folder to validate the packaged
+app's real Jellyfin connection without triggering a power action.
+
+Before uploading a binary, inspect its embedded resource names and scan its
+contents for local credentials and machine-specific paths. Publish the tested
+binary with its SHA-256 checksum; do not upload local diagnostic output.
+
 ## Limits
 
 Tests do not actually disconnect a network, put the test PC to sleep, or shut it down. The

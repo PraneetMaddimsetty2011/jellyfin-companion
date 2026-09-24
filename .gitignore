@@ -19,3 +19,6 @@ diagnostics/
 *.lnk
 ui-test.json
 test-results/
+dist/
+*.exe
+*.pdb
